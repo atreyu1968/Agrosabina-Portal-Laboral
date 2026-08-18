@@ -4,9 +4,9 @@ Repositorio privado de **AGROSABINA, S.L.** para el Portal Laboral, PRL, formaci
 
 ## Estado de distribución
 
-La **primera instalación** debe realizarse mediante el **instalador autocontenido verificado de la versión 2.5**. Este repositorio no debe utilizarse todavía como fuente de instalación inicial hasta que una instalación completa publique aquí el árbol de código y quede verificado mediante `agrosabina-publish-github`.
+La **primera instalación** debe realizarse mediante el instalador verificado de la versión 2.5. El repositorio contiene el paquete de distribución fragmentado y un instalador específico para poder descargarlo directamente desde una consola Ubuntu aunque el repositorio sea privado.
 
-El instalador autocontenido valida antes de instalar que el paquete de aplicación embebido tiene exactamente este SHA-256:
+El instalador valida antes de instalar que el paquete de aplicación descargado tiene exactamente este SHA-256:
 
 ```text
 b17529dd652403ca1b3f84613a89c7e63514557fb04372af6550a4e73f2bb0b5
@@ -17,14 +17,110 @@ b17529dd652403ca1b3f84613a89c7e63514557fb04372af6550a4e73f2bb0b5
 - Servidor o máquina virtual con **Ubuntu**.
 - Acceso `sudo`.
 - Conexión a Internet durante la instalación para descargar actualizaciones, Docker y, si se utiliza, `cloudflared`.
-- Para publicación posterior en este repositorio privado: un **GitHub Personal Access Token (PAT)** con permiso de escritura sobre `atreyu1968/Agrosabina-Portal-Laboral`.
+- Para descargar desde este repositorio privado: un **GitHub Personal Access Token (PAT)** con acceso al repositorio y permiso **Contents: Read-only**.
+- Para publicación posterior en este repositorio privado: un PAT con permiso de escritura sobre `atreyu1968/Agrosabina-Portal-Laboral`.
 - Para acceso público mediante Cloudflare Tunnel: hostname/túnel creado en Cloudflare y su **Tunnel Token**.
 
-No es necesario instalar previamente Docker, Docker Compose, Git, curl ni cloudflared: el instalador se encarga de ello.
+No es necesario instalar previamente Docker, Docker Compose, Git ni cloudflared. Para la descarga inicial desde GitHub solo se necesita `curl`; las instrucciones siguientes lo instalan si falta.
 
 ## 1. Primera instalación en Ubuntu
 
-Copiar al servidor el archivo:
+### Descargar el instalador directamente desde la consola del servidor — recomendado
+
+El repositorio es privado, por lo que GitHub exige autenticación para descargar el instalador. Se recomienda utilizar un **fine-grained PAT limitado exclusivamente a este repositorio y con `Contents: Read-only`**.
+
+En el servidor Ubuntu ejecutar:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+```
+
+Introducir el PAT sin mostrarlo en pantalla:
+
+```bash
+read -rsp "GitHub PAT (Contents: Read-only): " GH_PAT
+echo
+```
+
+Descargar el instalador directamente desde la rama `main`:
+
+```bash
+curl -fsSL \
+  -H "Authorization: Bearer ${GH_PAT}" \
+  -H "Accept: application/vnd.github.raw+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  "https://api.github.com/repos/atreyu1968/Agrosabina-Portal-Laboral/contents/installers/Agrosabina_instalador_github_v2.5.sh?ref=main" \
+  -o Agrosabina_instalador_github_v2.5.sh
+```
+
+Guardar temporalmente el PAT en un fichero accesible únicamente por `root`, para que el instalador pueda descargar el paquete de distribución sin volver a escribir el token:
+
+```bash
+printf '%s' "$GH_PAT" | sudo tee /root/.agrosabina-github-token.tmp >/dev/null
+sudo chmod 600 /root/.agrosabina-github-token.tmp
+unset GH_PAT
+```
+
+Dar permisos y ejecutar:
+
+```bash
+chmod +x Agrosabina_instalador_github_v2.5.sh
+sudo ./Agrosabina_instalador_github_v2.5.sh \
+  --github-token-file /root/.agrosabina-github-token.tmp
+```
+
+Al terminar, eliminar el token temporal:
+
+```bash
+sudo rm -f /root/.agrosabina-github-token.tmp
+```
+
+El instalador descargará desde GitHub las ocho partes de `dist/v2.5/`, reconstruirá el ZIP de aplicación, calculará su SHA-256 y **cancelará la instalación si no coincide exactamente** con:
+
+```text
+b17529dd652403ca1b3f84613a89c7e63514557fb04372af6550a4e73f2bb0b5
+```
+
+Después ejecutará automáticamente el instalador completo de AGROSABINA.
+
+#### Descargar e instalar indicando directamente la URL pública
+
+```bash
+sudo ./Agrosabina_instalador_github_v2.5.sh \
+  --github-token-file /root/.agrosabina-github-token.tmp \
+  --public-url https://portal.ejemplo.es
+```
+
+#### Descargar e instalar sin Cloudflare
+
+```bash
+sudo ./Agrosabina_instalador_github_v2.5.sh \
+  --github-token-file /root/.agrosabina-github-token.tmp \
+  --no-cloudflare
+```
+
+#### Omitir `apt upgrade`
+
+```bash
+sudo ./Agrosabina_instalador_github_v2.5.sh \
+  --github-token-file /root/.agrosabina-github-token.tmp \
+  --skip-system-upgrade
+```
+
+#### Cambiar el puerto local
+
+```bash
+sudo ./Agrosabina_instalador_github_v2.5.sh \
+  --github-token-file /root/.agrosabina-github-token.tmp \
+  --port 8088
+```
+
+> El PAT usado para descargar el instalador y el paquete no se incorpora al código del portal, no se introduce en la URL del repositorio y no se guarda en `.env`. El fichero temporal `/root/.agrosabina-github-token.tmp` debe eliminarse al finalizar la instalación.
+
+### Método alternativo: copiar el instalador al servidor
+
+Si el instalador ya se ha descargado en otro ordenador, puede copiarse al servidor por SCP/SFTP con el nombre:
 
 ```text
 Agrosabina_instalador_autocontenido_v2.5.sh
@@ -42,9 +138,9 @@ Ejecutar como administrador:
 sudo ./Agrosabina_instalador_autocontenido_v2.5.sh
 ```
 
-El instalador:
+El instalador completo:
 
-1. Extrae el paquete completo v2.5 embebido en el propio archivo.
+1. Obtiene o extrae el paquete completo v2.5.
 2. Comprueba su SHA-256 antes de continuar.
 3. Actualiza Ubuntu e instala las herramientas necesarias.
 4. Instala Docker Engine y Docker Compose desde el repositorio oficial de Docker.
@@ -152,7 +248,7 @@ El instalador muestra al finalizar la URL local, URL pública, acceso a `/admin`
 
 ## 4. Publicar la instalación completa en este repositorio privado
 
-La instalación inicial es independiente de GitHub. Una vez comprobado que el portal funciona correctamente, publicar el árbol de código completo ejecutando:
+La instalación inicial es independiente de la publicación del árbol de trabajo completo. Una vez comprobado que el portal funciona correctamente, publicar el árbol de código completo ejecutando:
 
 ```bash
 sudo agrosabina-publish-github
@@ -250,7 +346,9 @@ Los ficheros con secretos deben quedar accesibles únicamente por `root` o por e
 ```text
 Ubuntu limpio
    ↓
-Instalador autocontenido v2.5
+Descarga autenticada del instalador desde GitHub
+   ↓
+Descarga y reconstrucción del paquete v2.5
    ↓
 Verificación SHA-256
    ↓
