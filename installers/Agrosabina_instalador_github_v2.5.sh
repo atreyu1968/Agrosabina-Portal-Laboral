@@ -6,7 +6,36 @@ REPOSITORY="${GITHUB_REPOSITORY:-atreyu1968/Agrosabina-Portal-Laboral}"
 REF="${GITHUB_REF:-main}"
 EXPECTED_SHA256="b17529dd652403ca1b3f84613a89c7e63514557fb04372af6550a4e73f2bb0b5"
 TOKEN="${GITHUB_TOKEN:-}"
+TOKEN_FILE=""
 TMP=""
+INSTALL_ARGS=()
+
+usage() {
+  cat <<'USAGE'
+Instalador AGROSABINA desde repositorio GitHub privado.
+
+Opciones propias:
+  --github-token-file /ruta/token   Lee el PAT desde un fichero protegido.
+  --repository OWNER/REPO           Repositorio GitHub (por defecto atreyu1968/Agrosabina-Portal-Laboral).
+  --ref main                        Rama/ref de distribución (por defecto main).
+
+Las demás opciones se pasan a install.sh, por ejemplo:
+  --public-url https://portal.ejemplo.es
+  --no-cloudflare
+  --skip-system-upgrade
+  --port 8088
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --github-token-file) TOKEN_FILE="$2"; shift 2;;
+    --repository) REPOSITORY="$2"; shift 2;;
+    --ref) REF="$2"; shift 2;;
+    -h|--help) usage; exit 0;;
+    *) INSTALL_ARGS+=("$1"); shift;;
+  esac
+done
 
 cleanup() {
   [[ -n "${TMP:-}" && -d "$TMP" ]] && rm -rf "$TMP"
@@ -22,12 +51,17 @@ if ! command -v curl >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
   apt-get install -y --no-install-recommends ca-certificates curl unzip coreutils
 fi
 
+if [[ -n "$TOKEN_FILE" ]]; then
+  [[ -f "$TOKEN_FILE" ]] || { echo "No existe el fichero de token: $TOKEN_FILE" >&2; exit 1; }
+  TOKEN="$(tr -d '\r\n' < "$TOKEN_FILE")"
+fi
+
 if [[ -z "$TOKEN" ]]; then
   if [[ -t 0 ]]; then
     read -r -s -p "GitHub PAT de solo lectura para ${REPOSITORY}: " TOKEN
     echo
   else
-    echo "Falta GITHUB_TOKEN para acceder al repositorio privado." >&2
+    echo "Falta GITHUB_TOKEN o --github-token-file para acceder al repositorio privado." >&2
     exit 1
   fi
 fi
@@ -58,14 +92,14 @@ fi
 echo "[2/4] Integridad verificada: ${EXPECTED_SHA256}"
 unzip -q "$TMP/agrosabina-v2.5.zip" -d "$TMP/extract"
 APP_DIR="$TMP/extract/Agrosabina_Portal_Laboral_v2.5"
-[[ -x "$APP_DIR/install.sh" || -f "$APP_DIR/install.sh" ]] || { echo "No se encontró install.sh en el paquete." >&2; exit 1; }
+[[ -f "$APP_DIR/install.sh" ]] || { echo "No se encontró install.sh en el paquete." >&2; exit 1; }
 chmod +x "$APP_DIR/install.sh"
 
-# El token solo se usa para la descarga del repositorio privado; no se pasa al portal.
+# El token solo se usa para leer el repositorio privado; no se pasa al portal.
 unset TOKEN GITHUB_TOKEN
 
 echo "[3/4] Lanzando instalador completo de AGROSABINA..."
 cd "$APP_DIR"
-GITHUB_REPOSITORY="$REPOSITORY" GITHUB_BRANCH="$REF" ./install.sh "$@"
+GITHUB_REPOSITORY="$REPOSITORY" GITHUB_BRANCH="$REF" ./install.sh "${INSTALL_ARGS[@]}"
 
 echo "[4/4] Instalación finalizada."
