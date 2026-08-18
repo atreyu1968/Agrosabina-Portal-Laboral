@@ -1,251 +1,234 @@
-# AGROSABINA Portal Laboral
+# AGROSABINA Portal Laboral — v2.5
 
-Repositorio de **AGROSABINA, S.L.** para el Portal Laboral, PRL, formación, documentación de trabajadores y gestión integrada de evidencias GLOBALG.A.P./OPP.
+Portal laboral, PRL y documental de **AGROSABINA, S.L.**
 
-## Estado actual de distribución
+## Distribución recomendada
 
-La distribución v2.5 está publicada en `main` en partes verificables bajo:
+La instalación inicial se realiza mediante **un único ZIP verificado**. Se abandona el sistema anterior de distribución fragmentada en partes Base64.
 
-```text
-dist/v2.5/part00.b64
-...
-dist/v2.5/part07.b64
-```
-
-El instalador de consola está en:
+Archivo oficial de esta versión:
 
 ```text
-installers/Agrosabina_instalador_github_v2.5.sh
+Agrosabina_Portal_Laboral_v2.5_FINAL.zip
 ```
 
-El paquete reconstruido debe tener exactamente este SHA-256:
+SHA-256:
 
 ```text
-b17529dd652403ca1b3f84613a89c7e63514557fb04372af6550a4e73f2bb0b5
+6eff6ce26246ab0a8cc81b8deebf9b7db87742a27615fe59dd822d9eb3979757
 ```
 
-## Requisitos
+**No instales el paquete si el SHA-256 obtenido no coincide exactamente.**
 
-- Ubuntu con acceso `root` o `sudo`.
-- Conexión a Internet.
-- `curl` y certificados CA para la descarga inicial.
-- Cloudflare Tunnel solo si se desea publicar el portal mediante un hostname HTTPS.
-- Si el repositorio se vuelve privado, un PAT de GitHub con acceso al repositorio y permiso `Contents: Read`.
+## Opción 1 — copiar el ZIP directamente al servidor
 
-No es necesario instalar previamente Docker, Docker Compose, Git ni `cloudflared`; el instalador se ocupa de ello.
+Es el método más sencillo para la primera instalación. Copia el ZIP al servidor por SCP, SFTP, WinSCP o equivalente.
 
-# 1. Descargar e instalar desde la consola del servidor
+Ejemplo desde otro equipo:
 
-## Opción A — repositorio público: recomendada en el estado actual
+```bash
+scp Agrosabina_Portal_Laboral_v2.5_FINAL.zip root@IP_DEL_SERVIDOR:/root/
+```
 
-Actualmente el repositorio permite descargar el instalador sin autenticación. En un Ubuntu limpio ejecutar:
+En Ubuntu:
+
+```bash
+cd /root
+sudo apt-get update
+sudo apt-get install -y unzip ca-certificates curl
+sha256sum Agrosabina_Portal_Laboral_v2.5_FINAL.zip
+```
+
+Debe devolver:
+
+```text
+6eff6ce26246ab0a8cc81b8deebf9b7db87742a27615fe59dd822d9eb3979757
+```
+
+Descomprimir e instalar:
+
+```bash
+rm -rf /root/Agrosabina_Portal_Laboral_v2.5
+unzip Agrosabina_Portal_Laboral_v2.5_FINAL.zip -d /root/
+cd /root/Agrosabina_Portal_Laboral_v2.5
+chmod +x install.sh uninstall.sh update.sh bootstrap.sh
+sudo ./install.sh
+```
+
+El instalador prepara Ubuntu, instala Docker Engine y Docker Compose si son necesarios, copia la aplicación a `/opt/agrosabina-portal`, genera la configuración local, construye los contenedores, comprueba `/health` y permite configurar Cloudflare Tunnel.
+
+## Opción 2 — subir manualmente el ZIP a este repositorio
+
+Si se desea descargar el paquete posteriormente desde la consola del servidor, subir manualmente el ZIP a esta ruta del repositorio:
+
+```text
+dist/Agrosabina_Portal_Laboral_v2.5_FINAL.zip
+```
+
+### Repositorio público
+
+Después de haber subido el ZIP:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y ca-certificates curl
+sudo apt-get install -y ca-certificates curl unzip
+cd /root
+curl -fL \
+  https://raw.githubusercontent.com/atreyu1968/Agrosabina-Portal-Laboral/main/dist/Agrosabina_Portal_Laboral_v2.5_FINAL.zip \
+  -o Agrosabina_Portal_Laboral_v2.5_FINAL.zip
+sha256sum Agrosabina_Portal_Laboral_v2.5_FINAL.zip
 ```
 
-Descargar el instalador directamente desde `main`:
+### Repositorio privado
+
+Utiliza un PAT con permiso `Contents: Read` y evita escribirlo directamente en el historial:
 
 ```bash
-curl -fsSL \
-  "https://raw.githubusercontent.com/atreyu1968/Agrosabina-Portal-Laboral/main/installers/Agrosabina_instalador_github_v2.5.sh" \
-  -o Agrosabina_instalador_github_v2.5.sh
-```
-
-Comprobar que existe y empieza por un `shebang` Bash:
-
-```bash
-ls -lh Agrosabina_instalador_github_v2.5.sh
-head -n 3 Agrosabina_instalador_github_v2.5.sh
-```
-
-Dar permisos y ejecutar:
-
-```bash
-chmod +x Agrosabina_instalador_github_v2.5.sh
-sudo ./Agrosabina_instalador_github_v2.5.sh
-```
-
-El instalador descargará las ocho partes de `dist/v2.5/`, reconstruirá el ZIP, verificará su SHA-256 y **cancelará la instalación si no coincide** con el valor esperado.
-
-## Opción B — si el repositorio se cambia a privado
-
-No se debe escribir el PAT directamente en el historial del shell. Introducirlo de forma oculta:
-
-```bash
-read -rsp "GitHub PAT (Contents: Read): " GH_PAT
+read -rsp "GitHub PAT: " GH_PAT
 echo
-```
 
-Comprobar primero que el PAT es válido:
-
-```bash
-curl -fsSL \
-  -H "Authorization: Bearer ${GH_PAT}" \
-  -H "Accept: application/vnd.github+json" \
-  -H "X-GitHub-Api-Version: 2022-11-28" \
-  https://api.github.com/user | grep '"login"'
-```
-
-Si esta comprobación devuelve `401`, el PAT está vacío, es incorrecto o ha caducado y no debe continuarse.
-
-Descargar el instalador del repositorio privado:
-
-```bash
-curl -fsSL \
+curl -fL \
   -H "Authorization: Bearer ${GH_PAT}" \
   -H "Accept: application/vnd.github.raw+json" \
   -H "X-GitHub-Api-Version: 2022-11-28" \
-  "https://api.github.com/repos/atreyu1968/Agrosabina-Portal-Laboral/contents/installers/Agrosabina_instalador_github_v2.5.sh?ref=main" \
-  -o Agrosabina_instalador_github_v2.5.sh
-```
+  "https://api.github.com/repos/atreyu1968/Agrosabina-Portal-Laboral/contents/dist/Agrosabina_Portal_Laboral_v2.5_FINAL.zip?ref=main" \
+  -o Agrosabina_Portal_Laboral_v2.5_FINAL.zip
 
-Guardar temporalmente el PAT para que el instalador pueda descargar las partes privadas:
-
-```bash
-printf '%s' "$GH_PAT" | sudo tee /root/.agrosabina-github-token.tmp >/dev/null
-sudo chmod 600 /root/.agrosabina-github-token.tmp
 unset GH_PAT
+sha256sum Agrosabina_Portal_Laboral_v2.5_FINAL.zip
 ```
 
-Ejecutar:
-
-```bash
-chmod +x Agrosabina_instalador_github_v2.5.sh
-sudo ./Agrosabina_instalador_github_v2.5.sh \
-  --github-token-file /root/.agrosabina-github-token.tmp
-```
-
-Al terminar:
-
-```bash
-sudo rm -f /root/.agrosabina-github-token.tmp
-```
-
-# 2. Opciones de instalación
-
-## URL pública HTTPS
-
-```bash
-sudo ./Agrosabina_instalador_github_v2.5.sh \
-  --public-url https://portal.ejemplo.es
-```
-
-## Sin Cloudflare
-
-```bash
-sudo ./Agrosabina_instalador_github_v2.5.sh --no-cloudflare
-```
-
-Por defecto el portal escucha en:
+El SHA-256 debe ser exactamente:
 
 ```text
-http://IP_DEL_SERVIDOR:8088
+6eff6ce26246ab0a8cc81b8deebf9b7db87742a27615fe59dd822d9eb3979757
 ```
 
-## Omitir `apt upgrade`
+Después:
 
 ```bash
-sudo ./Agrosabina_instalador_github_v2.5.sh --skip-system-upgrade
+rm -rf /root/Agrosabina_Portal_Laboral_v2.5
+unzip Agrosabina_Portal_Laboral_v2.5_FINAL.zip -d /root/
+cd /root/Agrosabina_Portal_Laboral_v2.5
+chmod +x install.sh uninstall.sh update.sh bootstrap.sh
+sudo ./install.sh
 ```
 
-## Cambiar puerto
+## Opciones de instalación
+
+URL pública HTTPS:
 
 ```bash
-sudo ./Agrosabina_instalador_github_v2.5.sh --port 8088
+sudo ./install.sh --public-url https://portal.ejemplo.es
 ```
 
-# 3. Cloudflare Tunnel
-
-Si se proporciona un Tunnel Token, el instalador configura `cloudflared`. El hostname público debe dirigir al servicio local, normalmente:
-
-```text
-http://localhost:8088
-```
-
-Ejemplo con fichero de token protegido:
+Sin Cloudflare Tunnel:
 
 ```bash
-sudo ./Agrosabina_instalador_github_v2.5.sh \
-  --public-url https://portal.ejemplo.es \
-  --cloudflare-token-file /root/cloudflare-token.txt
+sudo ./install.sh --no-cloudflare
 ```
 
-Borrar el fichero de token una vez registrado correctamente el servicio.
+Sin ejecutar `apt upgrade`:
 
-# 4. Comprobaciones tras instalar
+```bash
+sudo ./install.sh --skip-system-upgrade
+```
+
+Puerto distinto:
+
+```bash
+sudo ./install.sh --port 8088
+```
+
+El puerto por defecto es `8088`.
+
+## Comprobación después de instalar
 
 ```bash
 cd /opt/agrosabina-portal
 sudo docker compose ps
-curl http://127.0.0.1:8088/health
-sudo systemctl status docker
+curl -fsS http://127.0.0.1:8088/health
 ```
 
-Si se usa Cloudflare:
-
-```bash
-sudo systemctl status cloudflared
-```
-
-Logs:
+Para consultar los logs:
 
 ```bash
 cd /opt/agrosabina-portal
 sudo docker compose logs --tail=200
 ```
 
-# 5. Publicación y actualizaciones posteriores
-
-Una vez comprobada la instalación completa:
+Si se utiliza Cloudflare Tunnel:
 
 ```bash
-sudo agrosabina-publish-github
+sudo systemctl status cloudflared
 ```
 
-El publicador debe excluir `.env`, bases de datos, documentos laborales, nóminas, firmas, backups, tokens y claves privadas.
+## Cloudflare Tunnel
 
-Solo después de verificar que la publicación remota coincide con la instalación local debe utilizarse:
+El hostname configurado en Cloudflare debe publicar:
 
-```bash
-sudo agrosabina-update
+```text
+http://localhost:8088
 ```
 
-# 6. Desinstalación
+El token del túnel no debe guardarse en `.env`, GitHub ni en las copias de seguridad del portal.
 
-```bash
-sudo agrosabina-uninstall
+## Acceso inicial
+
+La configuración local se crea en:
+
+```text
+/opt/agrosabina-portal/.env
 ```
 
-Antes de eliminar una instalación en producción, crear y verificar una copia de seguridad.
+La contraseña inicial de `/admin` de esta distribución es:
 
-# 7. Seguridad
+```text
+19631965
+```
 
-Nunca deben versionarse:
+Debe cambiarse después de comprobar que la instalación funciona correctamente.
+
+## Actualizaciones desde GitHub
+
+`agrosabina-update` solo debe utilizarse cuando el **árbol completo del código fuente** esté publicado correctamente en GitHub.
+
+Si en el repositorio únicamente se ha subido el ZIP de distribución, **no utilices `agrosabina-update`**. En ese caso, las actualizaciones se realizan descargando un nuevo ZIP verificado y ejecutando su `install.sh`; el instalador preserva `.env`, datos persistentes, certificados y backups.
+
+## Información sensible que nunca debe subirse
+
+No subir al repositorio:
 
 ```text
 .env
 .env.*
-data/
-documents/
-certificates/
+data/ con información real
+certificates/ con certificados reales
 backups/
+documents/
 logs/
 *.sqlite
 *.sqlite3
 *.db
 *.agrobackup
-Cloudflare Tunnel Token
-GitHub PAT
+tokens de Cloudflare
+PAT de GitHub
 claves privadas
-datos de trabajadores
 nóminas
 firmas
+documentos personales de trabajadores
 ```
 
-El hecho de que el código fuente pueda estar visible no autoriza a publicar datos laborales o secretos. Si se desea mantener también el código privado, cambiar la visibilidad del repositorio y utilizar el procedimiento con PAT descrito arriba.
+El ZIP oficial de distribución no contiene `.env` real, bases de datos de producción, tokens ni documentación personal. Los directorios persistentes incluidos están vacíos salvo los ficheros `.keep` necesarios para conservar la estructura.
+
+## Desinstalación
+
+```bash
+sudo agrosabina-uninstall
+```
+
+Antes de eliminar una instalación en producción, realiza una copia de seguridad y comprueba que puede restaurarse.
 
 ---
 
-**AGROSABINA, S.L. — Portal Laboral**
+**AGROSABINA, S.L. — Portal Laboral v2.5**
